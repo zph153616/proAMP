@@ -33,14 +33,14 @@ proAMP/
 |-- code
 |   |-- train_hybrid_amp.py     # Model training (TextCNN + physicochemical features)
 |   |-- predict_from_fasta.py   # Batch prediction on a FASTA file
-|   `-- evaluate_model.py       # Independent test-set and 10-fold CV metrics
+|   `-- evaluate_model.py       # Held-out (validation) metrics and 10-fold CV
 |-- data
 |   `-- example_sequences.fasta # Example input sequences
 |-- results
-|   |-- test_metrics.csv        # Independent test-set metrics
+|   |-- test_metrics.csv        # Held-out (validation) metrics
 |   |-- cv_fold_metrics.csv     # Per-fold metrics of the 10-fold CV
 |   `-- cv_metrics_summary.csv  # 10-fold CV summary (mean +/- std)
-|-- prAMP_hybrid_model.pth      # Trained model checkpoint (best test AUC)
+|-- prAMP_hybrid_model.pth      # Trained model checkpoint (best validation AUC)
 |-- environment.yml             # Conda environment
 |-- requirements.txt            # pip requirements
 `-- README.md                   # This README file
@@ -67,13 +67,15 @@ for consistent loading.
 
 ### Performance
 
-Independent test set (`results/test_metrics.csv`):
+Checkpoint selection uses the held-out 80/20 stratified split (seed 42). Because this split is used to select the model, it is reported as a **validation set** and its metrics are validation estimates. The **10-fold cross-validation is the primary, unbiased estimate** of generalization: each fold trains a fresh model, and no fold's held-out portion participates in checkpoint selection.
+
+Validation set (80/20, seed 42; `results/test_metrics.csv`; the same quantities are stored inside the checkpoint as `best_test_acc` / `best_test_auc`):
 
 | Accuracy | Sensitivity | Specificity | Precision | F1 | MCC | AUROC | AUPRC |
 |---|---|---|---|---|---|---|---|
 | 0.9738 | 0.9720 | 0.9755 | 0.9754 | 0.9737 | 0.9476 | **0.9965** | 0.9962 |
 
-10-fold cross-validation (`results/cv_metrics_summary.csv`, mean +/- std):
+10-fold cross-validation — primary estimate (`results/cv_metrics_summary.csv`, mean +/- std):
 
 | Accuracy | F1 | MCC | AUROC | AUPRC |
 |---|---|---|---|---|
@@ -120,13 +122,17 @@ python code/predict_from_fasta.py -i data/example_sequences.fasta -o amp_predict
 python code/train_hybrid_amp.py -i final_train_dataset.csv --epochs 30 --batch-size 32 --lr 0.001
 ```
 
-3. An 80/20 stratified train/test split is applied (seed 42), and the
-   checkpoint with the best test AUC is saved to `prAMP_hybrid_model.pth`.
+3. An 80/20 stratified held-out split is applied (seed 42). This split is used for
+   checkpoint selection: the model with the best AUC on it is saved to
+   `prAMP_hybrid_model.pth` (the value is stored inside the file as
+   `best_test_auc`). It therefore serves as a validation set rather than an
+   untouched test set; see the Evaluation section for the unbiased estimate.
 
 ### Evaluation
 
-Run `code/evaluate_model.py` to recompute the independent test-set metrics and
-the 10-fold cross-validation (writes `test_metrics.csv`, `cv_fold_metrics.csv`
+Run `code/evaluate_model.py` to recompute the held-out (validation) metrics and
+the 10-fold cross-validation, which is the primary generalization estimate
+(writes `test_metrics.csv`, `cv_fold_metrics.csv`
 and `cv_metrics_summary.csv`):
 
 ```
